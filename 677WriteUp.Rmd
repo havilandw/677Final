@@ -31,9 +31,9 @@ readcountry <- function(name){
 
 As all of us know, the spread of COVID-19 has been rampant and wide. It struck suddenly and fast, hardly giving us time to process what was going on. The uncertainty at the beginning made it incredibly difficult to predict how this disease was going to behave, and how we should progress forward.
 
-This did not, however, stop people from speculating. While medical practitioners were conducting their studies, many media outlets began to make claims and their own predictions on how COVID would behave. In this time period, they made a lot of connections to the flu, since it's a common virus in the same group. Of these claims, one of them seemed especially optimistic: that COVID=19 won't survive the summer heat, and would dissipate like the flu does. 
+This did not, however, stop people from speculating. While medical practitioners were conducting their studies, many media outlets began to make claims and their own predictions on how COVID would behave. In this time period, they made a lot of connections to the flu, since it's a common virus in the same group. Of these claims, one of them seemed especially optimistic: that COVID-19 won't survive the summer heat, and would dissipate like the flu does. The president also repeated this for some reason, so at least this has more of a purpose.
 
-The problem with this is twofold. On one hand, this probably isn't how the flu works*, so the reasoning for the mechanism is wrong. Secondly, we see COVID causing havoc all over the globe, including countries like Singapore and the Philippines, which are in the tropics, where it's not cold. While the statement doesn't seem to hold grounds off of this information alone, I wanted to see if it was possible to test its accuracy using statistics. Because of the number of interacting parts and unknowns behind the data, I wanted to make my approach as simple as possible. And in this manner, since we don't have too much data collected from different times, I instead looked to compare a warm country to a cold country, and to test if their spread rates differed.
+There are a few problems with this. On one hand, this probably isn't how the flu works*, so the reasoning for the mechanism is wrong. Secondly, we see COVID causing havoc all over the globe, including countries like Singapore and the Philippines, which are in the tropics, where it's not cold. While the statement doesn't seem to hold grounds off of this information alone, I wanted to see if it was possible to test its accuracy using statistics. Because of the number of interacting parts and unknowns behind the data, I wanted to make my approach as simple as possible. And in this manner, since we don't have too much data collected from different times, I instead looked to compare a warm country to a cold country, and to test if their spread rates differed.
 
 In this write-up report thing, I'll be documenting how I conducted this analysis, and show the results. This will be in a few short parts.
 
@@ -42,8 +42,6 @@ In part 1, I'll be explaining the countries I looked at, and will show some prel
 In part 2, I'll describe how I pick my distribution and how each country looks.
 
 In part 3, I'll compare the two countries using a simple t-test.
-
-In part 4, I'll assess the problem a little further, using power analysis highlight some of the limitations with this data.
 
 * A note on this, I don't think the mechanism behind the flu season has been confirmed. There are many simple explanations - cold weakening immune system, or people staying indoors together more, or less sun to provide vitamin D. I think the lack of understanding for the mechanism helps show why we may not apply it to COVID, since we can't really understand if the underlying mechanism applies to both cases. 
 
@@ -93,8 +91,9 @@ grid.arrange(p1,p2,nrow=1)
 
 ```
 
-We can also check by comparing their means and variances. In a poisson distribution, the mean and variance should be about the same. Iceland's daily COVID cases has a mean of `r round(mean(icedata),2)` and variance of `r round(sd(icedata),2)`. While not exact, they are relatively close, which may support it being a poisson distribution. Comparatively, New Zealand has a mean of `r round(mean(nzdata),2)` and variance of `r round(sd(nzdata),2)`. The variance is close to Iceland's, but the mean seems much lower. New Zealand's mean also seems lower than its variance, which could be a sign of overdispersion. This does make sense - in the first week, New Zealand has very few new COVID cases. This is most likely the system counting its initial patient and waiting for symptoms to begin appearing among others. For this comparison, I will not adjust for overdispersion, but this is an additional step that can be taken. For reference, taking out the first week increases New Zealand's mean to about 31.
+Poisson distributions follow the form $Y_i \sim Pois(\lambda)$, where $Y_i$ is daily COVID counts, and $\lambda$ would represent the rate at which COVID patients are found. Assuming this holds in Iceland and New Zealand, we can estimate $\lambda$ by calculating the mean and variance of the data.
 
+Iceland's daily COVID cases has a mean of `r round(mean(icedata),2)` and variance of `r round(sd(icedata),2)`. While not exact, they are relatively close, which may support it being a poisson distribution. Comparatively, New Zealand has a mean of `r round(mean(nzdata),2)` and variance of `r round(sd(nzdata),2)`. The variance is close to Iceland's, but the mean seems much lower. New Zealand's mean also seems lower than its variance, which could be a sign of overdispersion. This does make sense - in the first week, New Zealand has very few new COVID cases. This is most likely the system counting its initial patient and waiting for symptoms to begin appearing among others. For this comparison, I will not adjust for overdispersion, but this is an additional step that can be taken. For reference, taking out the first week increases New Zealand's mean to about 31.
 
 ## Comparison
 
@@ -113,11 +112,46 @@ t.test(icedata,nzdata)
 
 The t-test results support this claim. Based off this p-value, we don't have enough evidence to reject the null hypothesis. Therefore, given the COVID counts provided, our data does not seem to support the claim that New Zealand and Iceland have different spread rates.
 
-## Discussion
+## Part 4: Some Bayesian
+
+To further investigate spread rate, we can use some basic Bayesian posterior explorations. I don't think there's too much to do here for this topic, but I'll explore Iceland a little further to showcase what can be done here.
+
+In a Bayesian context, we know the likelihood function for our distribution, $P(Y|\lambda) \propto \lambda^{\sum{Y}} e^{-n\lambda}$. If this holds, we can also estimate $\lambda$ with our data by finding $P(\lambda|Y)$. Using a gamma conjugate prior, $P(\lambda) \propto \lambda^{a-1} e^{-\beta \lambda}$, we can calculate the conjugate posterior. $$P(\lambda|Y) = P(\lambda)P(Y|\lambda) = \lambda^{\sum{Y}+a-1}e^{-(n+\beta)\lambda}$$
+
+This is a gamma distribution with shape parameter $\sum{Y}+a$ and rate parameter $n + \beta$. where $a$ and $\beta$ are the shape and rate parameters for the prior. We can use this and our data to create and assess simulations for the posterior. In the plot below, we construct those simulations for Lambda, in purple, with the mean value displayed as blue. This first plot will use an uninformative prior, with $a=1$ and $\beta=0$. 
+
+```{r}
+alpha=1
+beta=0
+set.seed(100)
+icepost <- rgamma(1000,sum(icedata)+alpha, length(icedata)+ beta)
+hist(icepost,col="magenta4",main ="Posterior Simulations of Lambda using Iceland's Data"  ,xlab = "Simulated Lambda")
+abline(v=mean(icepost),col="blue")
+```
+
+We can see from this that the simulation does seem to be centered close 34.5, which is close to the mean value estimated. However, we can see that the mean can vary a significant range, with a standard deviation of `r round( sd(icepost),2 )`. This isn't the highest, but it's still a decently large range of uncertainty. This means that with 95% of the time, $\lambda$ can range from `r round( mean(icepost),2 ) - 2*round( sd(icepost),2 )` to `r round( mean(icepost),2 ) + 2*round( sd(icepost),2 )`.
+
+```{r}
+set.seed(100)
+nzpost <- rgamma(1000,sum(nzdata)+alpha, length(nzdata)+ beta)
+hist(nzpost,col="blue",main ="Posterior Simulations of Lambda using New Zealand's Data"  ,xlab = "Simulated Lambda")
+abline(v=mean(nzpost),col="magenta")
+```
+
+We also made a simulation showing the range of New Zealand's simulated lambda's. Not much else needs to be said here; again, the simulated mean $\lambda$ is `r round(mean(nzpost),2)` with standard deviation `r round(sd(nzpost),2)`, meaning that 95% of the time, lambda will fall between `r round(mean(nzpost),2) - 2*round(sd(nzpost),2)` and `r round(mean(nzpost),2) + 2*round(sd(nzpost),2)`.
+
+I do not believe these posterior estimations can be used to argue for a difference in significance (if they did, they would be different though). However, I think it does show that there is a decent amount of variance in possible means for these populations. Again, this highlights that the data may only be giving us a relatively limited perspective in this comparison.
+
+## Limitations and Conclusions
 
 It should be reiterated that this test is pretty simple and straightforward, and isn't free of problems. This could be capturing some kind of underlying similarity between New Zealand and Iceland that suppresses the temperature effect. Secondarily, we may not have enough samples to actually properly assess these distributions, and more data may need to be collected for a proper comparison to be made.
 
 Additionally, we may need more time and some more comparisons to eventually see if this trend exists across other countries. We saw that New Zealand and Iceland have similar spread rates, and we can use that to try to support that temperature may not have too much of an impact, but we may see very different patterns comparing other locations. 
+
+I also want to take the time to note another aspect of the poisson distribution. One of its assumptions is that each sample is independent and not based on the past. I think this assumption can hold in initial stages of infection, but as the health system begins to respond more effectively, and more people start taking action to stop getting infected, this assumption will no longer hold. It may be more effective to select a specific time range to compare different locations, but then we may be limited by sample size.
+
+Ultimately, I think this was a very simple analysis to compare different countries' spread rates. We found here that they are very similar, even though their temperatures are very different, highlighting that we may not expect COVID to dissipate. Again, I think there is more strong evidence for this outside of this analysis - as countries like Singapore continue to stay under lockdown, it's difficult to say that it will go away with heat. 
+
 
 
 

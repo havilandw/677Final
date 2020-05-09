@@ -35,7 +35,7 @@ mean(icedata)-mean(icepost)
 
 nz <- readcountry("New Zealand")
 nz <- nz[nz>0]
-nz <- nz[-c(1:7)]
+#nz <- nz[-c(1:7)]
 nzdata <- nz - lag(nz,default=0)
 hist(nzdata)
 descdist(nzdata,discrete=T,boot=500)
